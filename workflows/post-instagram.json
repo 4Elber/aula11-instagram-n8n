@@ -1,0 +1,376 @@
+{
+  "name": "Aula 11 - Post no Instagram",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Publicar no Instagram",
+        "formDescription": "Escolha uma imagem JPEG e escreva a legenda do post.",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "imagem",
+              "fieldLabel": "Imagem",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".jpg,.jpeg",
+              "requiredField": true
+            },
+            {
+              "fieldName": "legenda",
+              "fieldLabel": "Legenda",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "post-instagram"
+        }
+      },
+      "id": "bf3c6653-d392-404d-942f-85bce18473d0",
+      "name": "Novo post",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.4,
+      "position": [
+        -464,
+        16
+      ],
+      "webhookId": "73f1794c-7db0-4c1e-9d3c-1bd1e2e1162f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst arquivo = Object.values(item.binary ?? {})[0];\nif (!arquivo) throw new Error('Nenhuma imagem recebida.');\nif (arquivo.mimeType !== 'image/jpeg') throw new Error('Envie uma imagem JPEG.');\nconst legenda = item.json.legenda ?? item.json.Legenda ?? '';\nreturn [{ json: { arquivo: arquivo.fileName, legenda }, binary: { imagem: arquivo } }];"
+      },
+      "id": "64feb3be-b6bd-4474-ab4e-a58ee61d4bce",
+      "name": "Preparar imagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://tmpfiles.org/api/v1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "imagem"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16ecdb13-82a0-43d9-b0d3-84408d86473e",
+      "name": "Hospedar imagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.url.replace('http://', 'https://') }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "pagina"
+            }
+          }
+        }
+      },
+      "id": "8f3898a0-e828-4a3a-90a3-327650f40424",
+      "name": "Link direto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v27.0/17841414851167901",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "26d9761d-31eb-4013-94ef-32f077a4a707",
+      "name": "Conta do Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        16
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "FNLvaKiMlFOFpLyN",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v27.0/{{ $json.id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $('Link direto').item.json.pagina.match(/https:\\/\\/tmpfiles\\.org\\/dl\\/[^\"\\s<>]+/)?.[0] ?? '' }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Preparar imagem').item.json.legenda }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e586d039-9f79-4d7c-8c6b-93872fd5ecc9",
+      "name": "Criar contêiner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        16
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "FNLvaKiMlFOFpLyN",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "fcf6c130-7892-451a-bce1-f475bb1cfe6d",
+      "name": "Aguardar processamento",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        16
+      ],
+      "webhookId": "a1100000-0000-4000-8000-000000000021"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v27.0/{{ $('Conta do Instagram').item.json.id }}/media_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('Criar contêiner').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d372b4f-069f-4ca8-a47a-ed0a07ecf271",
+      "name": "Publicar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        16
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "FNLvaKiMlFOFpLyN",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v27.0/{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "permalink,timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39bf182f-4af7-4ec5-b18e-35502c1b2584",
+      "name": "Link do post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        16
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "FNLvaKiMlFOFpLyN",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Post publicado",
+        "completionMessage": "={{ $json.permalink }}",
+        "options": {}
+      },
+      "id": "7b41e601-c20b-4e4e-9faa-5f5999060ad7",
+      "name": "Post publicado",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        16
+      ],
+      "webhookId": "a1100000-0000-4000-8000-000000000022"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Novo post": {
+      "main": [
+        [
+          {
+            "node": "Preparar imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar imagem": {
+      "main": [
+        [
+          {
+            "node": "Hospedar imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hospedar imagem": {
+      "main": [
+        [
+          {
+            "node": "Link direto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link direto": {
+      "main": [
+        [
+          {
+            "node": "Conta do Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conta do Instagram": {
+      "main": [
+        [
+          {
+            "node": "Criar contêiner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar contêiner": {
+      "main": [
+        [
+          {
+            "node": "Aguardar processamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar processamento": {
+      "main": [
+        [
+          {
+            "node": "Publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar": {
+      "main": [
+        [
+          {
+            "node": "Link do post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link do post": {
+      "main": [
+        [
+          {
+            "node": "Post publicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1ec717a3-abf3-4c27-9586-a3e8db7447f5",
+  "meta": {
+    "instanceId": "89c4dcbc16971d8241a9d15f4c3df5cc9f85e8842fbcf6824d41d476cecb0c0c"
+  },
+  "nodeGroups": [],
+  "id": "k5xjfg9SpuB1ICNo",
+  "tags": []
+}
